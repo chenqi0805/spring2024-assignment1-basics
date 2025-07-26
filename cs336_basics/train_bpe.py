@@ -5,7 +5,29 @@ import heapq
 
 PAT = r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
 
-class BPETokenizer(object):
+class PairItem:
+    """自定义类用于在堆中实现正确的排序"""
+    def __init__(self, count, bytes1, bytes2):
+        self.count = count
+        self.bytes1 = bytes1
+        self.bytes2 = bytes2
+    
+    def __lt__(self, other):
+        # 首先按频次降序（大的在前）
+        if self.count != other.count:
+            return self.count > other.count
+        # 频次相同时，按第一个token的字节降序
+        if self.bytes1 != other.bytes1:
+            return self.bytes1 > other.bytes1
+        # 第一个token相同时，按第二个token的字节降序
+        return self.bytes2 > other.bytes2
+    
+    def __eq__(self, other):
+        return (self.count == other.count and 
+                self.bytes1 == other.bytes1 and 
+                self.bytes2 == other.bytes2)
+
+class BPETokenizer:
     def __init__(self, vocab_size: int, special_tokens: list[str]):
         self.vocab_size = vocab_size
         self.special_tokens = special_tokens
@@ -17,7 +39,7 @@ class BPETokenizer(object):
             text = f.read()
         if self.special_tokens:
             special_pattern = f"(?:{'|'.join(re.escape(s) for s in self.special_tokens)})"
-            text_parts = [part for part in re.split(special_pattern, text) if part]
+            text_parts = [part for part in re.split(special_pattern, text) if part and part not in self.special_tokens]
         else:
             text_parts = [text]
         
@@ -37,16 +59,18 @@ class BPETokenizer(object):
             for i in range(len(token_tuple)-1):
                 byte_pair_count[token_tuple[i:i+2]] += count
 
-        byte_pair_count_max_heap = [(-count, pair) for pair, count in byte_pair_count.items()]
+        byte_pair_count_max_heap = [PairItem(count, pair[0], pair[1]) for pair, count in byte_pair_count.items()]
+        heapq.heapify(byte_pair_count_max_heap)
 
         remaining = self.vocab_size - len(vocabs)
         merges = []
         while remaining > 0:
-            print(f"remaining {remaining}")
-            negCount, tuple_to_merge = heapq.heappop(byte_pair_count_max_heap)
+            pairItem = heapq.heappop(byte_pair_count_max_heap)
+            tuple_to_merge = (pairItem.bytes1, pairItem.bytes2)
             mergedBytes = b''.join(tuple_to_merge)
-            while mergedBytes in vocabs or -negCount != byte_pair_count[tuple_to_merge]:
-                negCount, tuple_to_merge = heapq.heappop(byte_pair_count_max_heap)
+            while mergedBytes in vocabs or pairItem.count != byte_pair_count[tuple_to_merge]:
+                pairItem = heapq.heappop(byte_pair_count_max_heap)
+                tuple_to_merge = (pairItem.bytes1, pairItem.bytes2)
                 mergedBytes = b''.join(tuple_to_merge)
             merges.append(tuple_to_merge)
             vocabs.add(mergedBytes)
@@ -57,16 +81,21 @@ class BPETokenizer(object):
                 word_count = pretokenized[word]
                 new_token_tuple = self.merge_token_tuple(old_token_tuple, tuple_to_merge)
                 token_tuples[idx] = new_token_tuple
+                byte_pair_count_before_update = Counter()
+                for i in range(len(old_token_tuple)-1):
+                    byte_pair_count_before_update[old_token_tuple[i:i+2]] = byte_pair_count[old_token_tuple[i:i+2]]
+                for i in range(len(new_token_tuple)-1):
+                    byte_pair_count_before_update[new_token_tuple[i:i+2]] = byte_pair_count[new_token_tuple[i:i+2]]
                 for i in range(len(old_token_tuple)-1):
                     byte_pair_count[old_token_tuple[i:i+2]] -= word_count
                 for i in range(len(new_token_tuple)-1):
                     byte_pair_count[new_token_tuple[i:i+2]] += word_count
                 byte_pairs_to_push = set()
-                for i in range(len(new_token_tuple)-1):
-                    if new_token_tuple[i] == mergedBytes or new_token_tuple[i+1] == mergedBytes:
-                        byte_pairs_to_push.add(new_token_tuple[i:i+2])
+                for byte_pair, old_count in byte_pair_count_before_update.items():
+                    if old_count != byte_pair_count[byte_pair]:
+                        byte_pairs_to_push.add(byte_pair)
                 for byte_pair in byte_pairs_to_push:
-                    heapq.heappush(byte_pair_count_max_heap, (-byte_pair_count[byte_pair], byte_pair))
+                    heapq.heappush(byte_pair_count_max_heap, PairItem(byte_pair_count[byte_pair], byte_pair[0], byte_pair[1]))
         vocab_dict = {i: v for i, v in enumerate(vocabs)}
         return vocab_dict, merges
 
@@ -88,8 +117,8 @@ class BPETokenizer(object):
             pretokenized.update(re.findall(PAT, text_part))
         return pretokenized
     
-obj = BPETokenizer(10000, ["<|endoftext|>"])
-vocab_dict, merges = obj.train("data/TinyStoriesV2-GPT4-train.txt")
-print(merges)
-# print((1, 2, 3)[1:3])
-# print(tuple([s.encode('utf-8') for s in 'ac']))
+# obj = BPETokenizer(269, ["<|endoftext|>", " "])
+# vocab_dict, merges = obj.train("data/test.txt")
+# print(merges)
+# # print((1, 2, 3)[1:3])
+# # print(tuple([s.encode('utf-8') for s in 'ac']))
