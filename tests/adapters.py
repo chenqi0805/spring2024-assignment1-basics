@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import os
 from typing import IO, BinaryIO, Iterable, Optional, Type
+from cs336_basics.train_bpe import BPETokenizer
 
 import numpy.typing as npt
 import torch
@@ -569,4 +570,7 @@ def run_train_bpe(
                 representing that <token1> was merged with <token2>.
                 Merges are ordered by order of creation.
     """
+    # bpe_tokenizer = BPETokenizer(vocab_size, special_tokens)
+    # vocab, merges = bpe_tokenizer.train(input_path)
+    # return vocab, merges
     raise NotImplementedError
