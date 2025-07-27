@@ -1,4 +1,5 @@
-from train_bpe import BPETokenizer
+# from train_bpe import BPETokenizer
+from train_bpe_no_inverted_indices import BPETokenizer
 
 VOCAB_SIZE = 32000
 SPECIAL_TOKENS = ["<|endoftext|>"]

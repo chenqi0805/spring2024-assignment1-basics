@@ -3,7 +3,8 @@ from __future__ import annotations
 
 import os
 from typing import IO, BinaryIO, Iterable, Optional, Type
-from cs336_basics.train_bpe import BPETokenizer
+# from cs336_basics.train_bpe import BPETokenizer
+from cs336_basics.train_bpe_no_inverted_indices import BPETokenizer
 
 import numpy.typing as npt
 import torch
