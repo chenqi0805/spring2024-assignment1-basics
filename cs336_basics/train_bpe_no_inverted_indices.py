@@ -44,7 +44,7 @@ class BPETokenizer:
             text_parts = [text]
         
         pretokenized = self._pretokenize(text_parts)
-        token_tuple_count = {tuple([char.encode('utf-8') for char in token]): count for token, count in pretokenized.items()}
+        token_tuple_count = {tuple(bytes([b]) for b in token.encode('utf-8')): count for token, count in pretokenized.items()}
         token_tuples = list(token_tuple_count.keys())
 
         # inverted_indices = defaultdict(list)
